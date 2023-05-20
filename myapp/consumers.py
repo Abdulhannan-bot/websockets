@@ -114,11 +114,11 @@ class ChatConsumer(AsyncWebsocketConsumer):
         message_text = message['message']
         to = message['to']
         From = message['from']
+        from_username = message['from_username']
         from_user = await sync_to_async(User.objects.get)(id = From)
         to_user = await sync_to_async(User.objects.get)(id = to)
-        print(from_user.username)
-        print(to_user.username)
-        print(message_text)
+        from_user_name = from_user.first_name+" "+from_user.last_name
+        to_user_name = to_user.first_name+" "+to_user.last_name
         await sync_to_async(Message.objects.create)(from_user = from_user, to_user= to_user, sms=message_text)
         # Send message to room group
         await self.channel_layer.group_send(
@@ -128,6 +128,9 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 'message': message_text,
                 'to': to,
                 'from': From,
+                'from_name': from_user_name,
+                'to_name': to_user_name,
+                'from_username': from_username, 
             }
         )
 
@@ -135,12 +138,16 @@ class ChatConsumer(AsyncWebsocketConsumer):
         message = event['message']
         to = event['to']
         From = event['from']
-        
+        from_user_name = event['from_name']
+        to_user_name = event['to_name']
+        print(event['from_username'])
         # Send message to WebSocket
         await self.send(text_data=json.dumps({
             'message': message,
             'to': to,
             'from': From,
+            'from_name': from_user_name,
+            'to_name': to_user_name,
         }))
 
 

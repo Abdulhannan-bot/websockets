@@ -1,4 +1,5 @@
--- MySQL dump 10.13  Distrib 8.0.32, for macos10.15 (x86_64)
+Terminal close -- exit!
+trib 8.0.32, for macos10.15 (x86_64)
 --
 -- Host: localhost    Database: websockets
 -- ------------------------------------------------------

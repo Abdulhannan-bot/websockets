@@ -11,7 +11,7 @@ class ContactAdmin(admin.ModelAdmin):
 admin.site.register(Contact, ContactAdmin)
 
 class MessageAdmin(admin.ModelAdmin):
-    list_display = ['id', 'from_user', 'to_user','sms', 'created_at']
+    list_display = ['id', 'from_user', 'to_user','sms', 'read_by', 'created_at']
     search_field = ['user']
 
 admin.site.register(Message, MessageAdmin)
