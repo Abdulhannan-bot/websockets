@@ -4,7 +4,6 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404
 from django.http import JsonResponse
 from django.db.models import Subquery, OuterRef, Max, Q, Count
-from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 from django.http import HttpResponse
 from .decorators import *
@@ -31,58 +30,20 @@ def login_view(request):
 
 @login_required(login_url = 'login')
 def home(request):
-    # print(request.headers.get('upgrade'))
-    # if request.headers.get('upgrade') == 'websocket':
-    #     room_name = request.GET.get('contact')
-    #     consumer = ChatConsumer.as_asgi()
-    #     response = consumer(request)
-    #     return response
     user = request.user
     contacts = Contact.objects.exclude(user = user)
     from_contact = Contact.objects.get(user = user)
 
-    # latest_messages = Message.objects.filter(
-    #   models.Q(from_user=OuterRef('user')) | models.Q(to_user=OuterRef('user'))
-    # ).order_by('-created_at')
-
-    latest_messages = Message.objects.filter(
-      Q(from_user=request.user, to_user=OuterRef('user')) | 
-      Q(from_user=OuterRef('user'), to_user=request.user)
-    ).order_by('-created_at')
-
-    unread_messages = Message.objects.filter(Q(from_user=OuterRef('user'), to_user=request.user, read_by=False))
-    unread_messages_subquery = unread_messages.values('to_user').annotate(count=Count('to_user')).values('count')
-    # for i in read_messages:
-    #   print(i.sms)
-    
-    # for i in latest_messages:
-    #   print(i.from_user, i.to_user, i.sms)
-
-    contacts = Contact.objects.annotate(
-        latest_message=Subquery(latest_messages.values('sms')[:1]),
-        latest_message_time=Subquery(latest_messages.values('created_at')[:1]),
-        # unread_messages_count=Subquery(
-        # read_messages.filter(read_by=False)
-        # .values('id')
-        # .annotate(count=Count('id'))
-        # .values('count')[:1]
-        # ),
-        unread_messages_count=Subquery(unread_messages_subquery),
-        # unread_messages = Subquery(read_messages.values('id').annotate(count=Count('id', distinct=True)).values('from_user'))
-        ).order_by("-latest_message_time").exclude(user = request.user)
-
-    for i in contacts:
-      print(i.unread_messages_count)
 
     users = User.objects.all()
-
     room_names= []
     for i in users:
-      room_id = int(i.id) + int(request.user.id)
-      room_names.append(f'room{room_id}')
+      room_id = sorted([i.id,request.user.id])
+      room_names.append(f'room_{room_id[0]}_{room_id[1]}')
+    print(room_names)
 
     context = {
-      'contacts': contacts,
+      # 'contacts': contacts,
       'from_id': request.user.id,
       'from_contact': from_contact,
       'room_names': room_names,
@@ -101,25 +62,8 @@ def home(request):
         i.read_by = True
         i.save()
 
-      try:
-        check_message = Message.objects.get(sms = 'this is 101 testing')
-        print(check_message.read_by)
-      except:
-        print("not yet stored")
-
-      unread_messages = Message.objects.filter(Q(from_user=OuterRef('user'), to_user=request.user, read_by=False))
-
-      unread_messages_subquery = unread_messages.values('to_user').filter(read_by=False).annotate(count=Count('to_user')).values('count')
-      contacts = Contact.objects.annotate(
-        latest_message=Subquery(latest_messages.values('sms')[:1]),
-        latest_message_time=Subquery(latest_messages.values('created_at')[:1]),
-        unread_messages_count=Subquery(unread_messages_subquery),
-        ).order_by("-latest_message_time").exclude(user = request.user)
-      
-      context['contacts'] = contacts
-
-      room_id = int(to.id) + int(request.user.id)
-      room_name = f'room{room_id}'
+      room_id = sorted([to.id,request.user.id])
+      room_name = f'room_{room_id[0]}_{room_id[1]}'
 
       context['show_chat'] = True
       context['from_messages'] = from_messages
@@ -130,7 +74,24 @@ def home(request):
       context['from'] = request.user.username
       context['to'] = to.username
       context['room'] = room_name
- 
+
+    latest_messages = Message.objects.filter(
+      Q(from_user=request.user, to_user=OuterRef('user')) | 
+      Q(from_user=OuterRef('user'), to_user=request.user)
+    ).order_by('-created_at')
+
+    unread_messages = Message.objects.filter(Q(from_user=OuterRef('user'), to_user=request.user, read_by=False))
+    unread_messages_subquery = unread_messages.values('to_user').annotate(count=Count('to_user')).values('count')
+    contacts = Contact.objects.annotate(
+      latest_message=Subquery(latest_messages.values('sms')[:1]),
+      latest_message_time=Subquery(latest_messages.values('created_at')[:1]),
+      latest_message_user=Subquery(latest_messages.values('from_user')[:1]),
+      latest_message_read=Subquery(latest_messages.values('read_by')[:1]),
+      unread_messages_count=Subquery(unread_messages_subquery),
+      ).order_by("-latest_message_time").exclude(user = request.user)
+    
+      
+    context['contacts'] = contacts
     return render(request, 'base.html', context = context)
 
 

@@ -430,6 +430,25 @@
       .user-name {
         font-size: 12px;
       }
+
+      .read-check-container {
+        position: relative;
+      }
+
+      .read-check {
+        position: absolute;
+        bottom: 0;
+      }
+
+      .unread-check {
+        position: absolute;
+        bottom: 0;
+        color: #c0b4b4;
+      }
+
+      .unread-check-notify {
+        color: #c0b4b4;
+      }
       
     </style>
   </head>
@@ -490,18 +509,27 @@
                         <p class="name-time d-flex flex-column">
                           <span class="name-user d-flex flex-row justify-content-between">
                             <span class="user-name">{{ i.name }}</span>
+                            {% if i.latest_message_time %}
                             <span class="timestamp">{{ i.latest_message_time }}</span>
+                            {% endif %}
                           </span>
                           <span class="d-flex flex-row justify-content-between">
-                            {% if i.latest_message is not None %}
-                            {% if i.latest_message|length > 40 %}
-                            <small class="latest-message">{{ i.latest_message|slice:"40" }}....</small>
-                            {% else %}
-                            <small class="latest-message">{{ i.latest_message}}</small>
+                            <span>
+                              {% if i.latest_message_user == request.user.id and i.latest_message_read %}
+                              <span class="fa fa-check-circle"></span>
+                              {% elif i.latest_message_user == request.user.id and not i.latest_message_read %}
+                              <span class="fa fa-check-circle unread-check-notify""></span>
+                              {% endif %}
+                              {% if i.latest_message is not None %}
+                              {% if i.latest_message|length > 40 %}
+                              <small class="latest-message">{{ i.latest_message|slice:"40" }}....</small>
+                              {% else %}
+                              <small class="latest-message">{{ i.latest_message}}</small>
                             {% endif %}
+                            </span>
+                            
                             {% if i.unread_messages_count is not None or i.unread_message_count > 0 %}
                             <small class="notify-container">{{ i.unread_messages_count }}</small>
-                            
                             {% endif %}
                           {% endif %}
                           </span>
@@ -513,12 +541,12 @@
                   </div>
                 </div>
                 {% if show_chat %}
-                <div class="col-xl-8 col-lg-8 col-md-8 col-sm-9 col-9 chatBox-container">
+                <div class="col-xl-8 col-lg-8 col-md-8 col-sm-9 col-9 chatBox-container" value="{{ value.id }}">
                   <div class="selected-user">
                     <span>To: <span class="name">{{ to_value.name }}</span></span>
                   </div>
                   <div class="chat-container">
-                    <ul class="chat-box chatContainerScroll" style="height: 30rem; max-height: 30rem; overflow-y: scroll;" id="chatBox">
+                    <ul class="chat-box chatContainerScroll chatBoxList" style="height: 30rem; max-height: 30rem; overflow-y: scroll;" id="chatBox">
                       {% for i in messages %} {% if i.from_user == value and i.to_user == request.user %}
                       <li class="chat-left">
                         <div class="chat-avatar">
@@ -534,11 +562,16 @@
                         </div>
                       </li>
                       {% elif i.from_user == request.user and i.to_user == value %}
-                      <li class="chat-right">
+                      <li class="chat-right ">
                         <div class="chat-hour">
-                          {{ i.created_at }} <span class="fa fa-check-circle"></span>
+                          {{ i.created_at }}
                         </div>
-                        <div class="chat-text">{{ i.sms }}</div>
+                        <div class="chat-text read-check-container">{{ i.sms }}
+                          {% if i.read_by %}
+                          <span class="fa fa-check-circle read-check"></span>
+                          {% else %}
+                          <span class="fa fa-check-circle unread-check"></span>
+                         {% endif %}</div>
                         <div class="chat-avatar">
                           <img
                             src="https://www.bootdey.com/img/Content/avatar/avatar3.png"
@@ -576,7 +609,6 @@
               </div>
             </div>
           </div>
-          <button class="btn-click">click</button>
         </div>
       </div>
     </div>
@@ -589,13 +621,15 @@
       const chatBox = document.getElementById('chatBox')
       const usersList = document.querySelector(`.users`)
       const chatBoxContainer = document.querySelector(`.chatBox-container`)
-      let rooms = {{ room_names|safe }}
+      let rooms = {{ room_names|safe }};
       let chatSockets = []
+      let notifySocket = []
 
       let room = '{{ room|safe }}'
       let url = `ws://${window.location.host}/ws/chat/${room}/`;
       let toUser
       const chatSocket = new WebSocket(url);
+      notifySocket = new WebSocket(`ws://${window.location.host}/ws/notify/${room}/`)
       const divElement = document.querySelectorAll(`.person`);
       let form = document.querySelector("#form");
       
@@ -607,37 +641,65 @@
       for (let i = 0; i < rooms.length; i++) {
         chatSockets.push(`chatSocket${i+1}`)
         chatSockets[i] = new WebSocket(`ws://${window.location.host}/ws/chat/${rooms[i]}/`)
+        notifySocket[i] = new WebSocket(`ws://${window.location.host}/ws/notify/${rooms[i]}/`)
+
+        notifySocket[i].onmessage = function(e) {
+          console.log('notify recieved');
+          let data = JSON.parse(e.data);
+          let check = data.contact
+          usersListEl = usersList.children
+          for(let i =0; i < usersListEl.length; i++) {
+            if (usersListEl[i].getAttribute("value") === check) {
+              console.log(usersListEl[i].getAttribute("value"))
+              let test = usersListEl[i].querySelector('.fa')
+              test.classList.remove('unread-check-notify')
+            }
+          }
+        }
+
+
         chatSockets[i].onmessage = function(e) {
           let data = JSON.parse(e.data);
-          console.log(data);
+          // console.log(data);
+          const usersList = document.querySelector(`.users`)
           let me = "{{ from_id|safe }}"
           let them = "{{ value.id|safe }}"
           let check = me === data.from ? data.to : data.from
-          console.log(`${rooms[i]} is active`);
+          // console.log(`${rooms[i]} is active`);
           usersListEl = usersList.children
           for (let i = 0; i < usersListEl.length; i++) {
             if (usersListEl[i].getAttribute("value") === check) {
-              console.log(usersList.firstChild)
               usersList.removeChild(usersListEl[i])
               const newEntry = document.createElement('li')
               newEntry.classList.add("person","d-flex", "flex-row")
               newEntry.setAttribute("data-chat","person1")
               newEntry.setAttribute("value",`${me === data.from ? `${data.to}`:`${data.from}`}`)
-              newEntry.innerHTML = `
-                        <div class="user">
-                          <img
-                            src="https://www.bootdey.com/img/Content/avatar/avatar3.png"
-                            alt="Retail Admin"
-                          />
-                          <span class="status busy"></span>
-                        </div>
-                        <p class="name-time d-flex flex-column">
-                          <span class="name">${me === data.from ? `${data.to_name}`:`${data.from_name}`}</span>
-                          ${ data.message.length > 40 ? `<small>${data.message.slice(0,40)}....</small>`:
-                           `<small>${data.message}</small>` }
-                        </p>`
+              newEntry.innerHTML =  `
+                <div class="user">
+                  <img
+                    src="https://www.bootdey.com/img/Content/avatar/avatar3.png"
+                    alt="Retail Admin"
+                  />
+                  <span class="status busy"></span>
+                </div>
+                <p class="name-time d-flex flex-column">
+                  <span class="name-user d-flex flex-row justify-content-between">
+                    <span class="user-name">${me === data.from ? `${data.to_name}`:`${data.from_name}`}</span>
+                    <span class="timestamp">${data.time}</span>
+                  </span>
+                  <span class="d-flex flex-row justify-content-between">
+                    <span>
+                      ${data.from === me ? `<span class="fa fa-check-circle unread-check-notify"></span>`:``} 
+                      ${ data.message.length > 40 ? `<small class="latest-message">${data.message.slice(0,40)}....</small>`:
+                      `<small class="latest-message">${data.message}</small>` }
+                    </span>
+                    ${data.to_unread_messages_count && data.to === me? `<small class="notify-container">${data.to_unread_messages_count}</small>`:``}
+                  </span>  
+                </p>
+              `
               usersList.insertBefore(newEntry, usersList.firstChild)
               let divCheck = document.querySelectorAll(`.person`)
+
               divCheck.forEach((x) => {
                 x.addEventListener("click", () => {
                   console.log('clicked');
@@ -649,16 +711,10 @@
                   chatBox.scrollTop = chatBox.scrollHeight;
                 });
               })
+              // helper();
             }
           }
         }
-      }
-
-      
-
-
-      if (chatBox) {
-        console.log(chatBox.children)
       }
 
       chatSocket.onmessage = function(e) {
@@ -669,16 +725,18 @@
         let me = "{{ from_id|safe }}"
         let them = "{{ value.id|safe }}"
         let them_name = "{{ to_value.name|safe }}"
-        let today = new Date();
-        let time = today.getHours()+":"+today.getMinutes()
-
         insertBox.insertAdjacentHTML(
            "beforeend",
-            `${ me === data.from ? `<li class="chat-right">
+            `${ me === data.from ? 
+            `<li class="chat-right">
               <div class="chat-hour">
-                ${time} <span class="fa fa-check-circle"></span>
+                ${data.time}
               </div>
-              <div class="chat-text">${data.message}</div>
+              <div class="chat-text read-check-container">
+                <span>${data.message}</span>
+                ${data.from === me ? `<span class="fa fa-check-circle unread-check"></span>`:``}  
+              </div>
+              <div class="chat-avatar">
               <div class="chat-avatar">
                 <img
                   src="https://www.bootdey.com/img/Content/avatar/avatar3.png"
@@ -697,45 +755,72 @@
               </div>
               <div class="chat-text">${data.message}</div>
               <div class="chat-hour">
-                ${time} <span class="fa fa-check-circle"></span>
+                ${data.time}
               </div>
             </li>` }`
           );
-        const postData = {
-          to_user: data.from,
-          from_user: data.to,
-          sms: data.message
-        };
-        const csrfElement = document.querySelector("[name=csrfmiddlewaretoken]");
-        const csrftoken = csrfElement.value; // Get the CSRF token from the hidden input field
 
-        // fetch("{% url 'mark_read' %}", {
-        //   method: 'POST',
-        //   headers: {
-        //     'Content-Type': 'application/json',
-        //     'X-CSRFToken': csrftoken,
-        //   },
-        //   body: JSON.stringify(postData)
-        // })
-        // .then(response => response.json())
-        // .then(data => {
-        //   console.log('Object instance updated successfully.');
-        // })
-        // .catch(error => {
-        //   console.error('Error updating object instance:', error);
-        // });
-
+        if (data.from == chatBoxContainer.getAttribute('value')) {
+          console.log('yes the values are same');
+          notifySocket.send(JSON.stringify({
+            read: true,
+            contact: data.to,
+            from: data.from,
+          }))
+        }
+        else {
+          console.log(`no that value is ${data.from} and ${chatBoxContainer.getAttribute('value')}`);
+        }
+                    
         insertBox.scrollTop = insertBox.scrollHeight;
+      };
+
+
+      window.addEventListener('load', () => {
+        if (!chatBoxContainer) {
+          return;
+        }
+        let from = "{{ from_id|safe }}"
+        val = chatBoxContainer.getAttribute('value')
+        notifySocket.onopen = () => {
+          notifySocket.send(JSON.stringify({
+          read: true,
+          contact: from,
+          from: val,
+        }))
+        } 
+      }) 
+
+
+      notifySocket.onmessage = function(e) {
+        let data = JSON.parse(e.data);
+        // console.log(data);
+        // console.log(chatBoxContainer.getAttribute('value'), data.from);
+        if (chatBoxContainer.getAttribute('value') == data.contact) {
+          console.log("they are the same");
+          const unread_checks = document.querySelectorAll(`.unread-check`)
+          unread_checks.forEach(x => {
+            x.classList.remove('unread-check')
+            x.classList.add('read-check')
+          })
+          // console.log('hello');
+        }
       }
       
       const helper = function () {
         divElement.forEach((x) => {
           x.addEventListener("click", () => {
-            console.log('clicked');
             const val = x.getAttribute("value");
             toUser = val
-            console.log(toUser);
+            let from = "{{ from_id|safe }}"
+            notifySocket.send(JSON.stringify({
+              read: true,
+              contact: val,
+              from: from,
+            }))
             window.location.href = `/?contact=${val}`;
+            
+            // console.log("testing");
             const chatBox = document.getElementById('chatBox');
             chatBox.scrollTop = chatBox.scrollHeight;
           });
@@ -749,8 +834,8 @@
         let to = "{{ value.id|safe }}";
         let from = "{{ from_id|safe }}"
         let from_username="{{ from|safe }}"
-        console.log(from, to);
-        console.log(message);
+        // console.log(from, to);
+        // console.log(message);
 
         chatSocket.send(
           JSON.stringify({
@@ -760,7 +845,7 @@
             from_username: from_username,
           })
         );
-
+        
         form.reset();
       });  
     </script>

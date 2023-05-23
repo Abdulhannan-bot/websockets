@@ -19,9 +19,13 @@ load_dotenv()
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/3.2/howto/deployment/checklist/
+# daphne websockets.asgi:application --port 8000
+# export DJANGO_SETTINGS_MODULE=websockets.settings
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.getenv('SECRET_KEY')
+
+SERVER = os.getenv('SERVER')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -101,11 +105,21 @@ REST_FRAMEWORK = {
 #     },
 # }
 
-CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'channels.layers.InMemoryChannelLayer'
+if SERVER == 'DEVELOPMENT':
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels.layers.InMemoryChannelLayer'
+        }
     }
-}
+elif SERVER == 'PRODUCTION':
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {
+                "hosts": [("localhost", 6379)],
+            },
+        },
+    } 
 
 # Database
 # https://docs.djangoproject.com/en/3.2/ref/settings/#databases
@@ -157,9 +171,9 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/3.2/howto/static-files/
 
 STATIC_URL = '/static/'
-if DEBUG:
+if SERVER == 'DEVELOPMENT':
     STATICFILES_DIRS = [os.path.join(BASE_DIR,'static')]
-else:
+elif SERVER == 'PRODUCTION':
     STATIC_ROOT = os.path.join(BASE_DIR,'static')
 
 MEDIA_URL = '/media/'
