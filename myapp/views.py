@@ -33,9 +33,8 @@ def home(request):
     user = request.user
     contacts = Contact.objects.exclude(user = user)
     from_contact = Contact.objects.get(user = user)
-
-
     users = User.objects.all()
+    messages = Message.objects.all()
     room_names= []
     for i in users:
       room_id = sorted([i.id,request.user.id])
@@ -52,7 +51,7 @@ def home(request):
     if value:
       to = User.objects.get(id = value)
       to_contact = Contact.objects.get(user = to)
-      messages = Message.objects.all()
+      
       from_messages = Message.objects.filter(from_user = request.user, to_user = to)
       to_messages = Message.objects.filter(from_user=to, to_user=request.user)
       
@@ -90,8 +89,24 @@ def home(request):
       unread_messages_count=Subquery(unread_messages_subquery),
       ).order_by("-latest_message_time").exclude(user = request.user)
     
-      
+    contactList = list(contacts.values())
+    for contact in contactList:
+      if contact['latest_message_time']:
+        contact['latest_message_time'] = contact['latest_message_time'].isoformat()
+    contacts_json = json.dumps(contactList)
     context['contacts'] = contacts
+    context['contacts_json'] = contacts_json
+
+    messages = Message.objects.filter(Q(from_user=request.user)| Q(to_user=request.user)).order_by('created_at')
+
+    messagesList = list(messages.values())
+    for message in messagesList:
+      message['created_at'] = message['created_at'].isoformat()
+    messages_json = json.dumps(messagesList)
+    context['messages'] = messages
+    context['messages_json'] = messages_json
+
+    
     return render(request, 'base.html', context = context)
 
 

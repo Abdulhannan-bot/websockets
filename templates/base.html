@@ -449,7 +449,21 @@
       .unread-check-notify {
         color: #c0b4b4;
       }
-      
+
+      .chatBox-container-display {
+        visibility: hidden;
+
+      }
+
+      .name-of-contact {
+        font-weight: bold;
+      }
+
+      .disabled {
+        pointer-events: none;
+        opacity: 0.5;
+      }
+            
     </style>
   </head>
   <body>
@@ -465,7 +479,7 @@
               <h5 class="title">Chat App</h5>
               <div class="d-flex flex-row justify-content-between align-items-center">
                 <h5>{{ request.user.username }}</h5>
-                <a href="{% url 'logout' %}" class="btn btn-primary">logout</a>
+                <a href="" class="btn btn-primary btn-logout">logout</a>
               </div>
               
             </div>
@@ -493,61 +507,17 @@
                       </div>
                     </div>
                     <ul class="users">
-                      {% for i in contacts %}
-                      <li
-                        class="person d-flex flex-row"
-                        data-chat="person1"
-                        value="{{ i.user.id }}"
-                      >
-                        <div class="user">
-                          <img
-                            src="https://www.bootdey.com/img/Content/avatar/avatar3.png"
-                            alt="Retail Admin"
-                          />
-                          <span class="status busy"></span>
-                        </div>
-                        <p class="name-time d-flex flex-column">
-                          <span class="name-user d-flex flex-row justify-content-between">
-                            <span class="user-name">{{ i.name }}</span>
-                            {% if i.latest_message_time %}
-                            <span class="timestamp">{{ i.latest_message_time }}</span>
-                            {% endif %}
-                          </span>
-                          <span class="d-flex flex-row justify-content-between">
-                            <span>
-                              {% if i.latest_message_user == request.user.id and i.latest_message_read %}
-                              <span class="fa fa-check-circle"></span>
-                              {% elif i.latest_message_user == request.user.id and not i.latest_message_read %}
-                              <span class="fa fa-check-circle unread-check-notify""></span>
-                              {% endif %}
-                              {% if i.latest_message is not None %}
-                              {% if i.latest_message|length > 40 %}
-                              <small class="latest-message">{{ i.latest_message|slice:"40" }}....</small>
-                              {% else %}
-                              <small class="latest-message">{{ i.latest_message}}</small>
-                            {% endif %}
-                            </span>
-                            
-                            {% if i.unread_messages_count is not None or i.unread_message_count > 0 %}
-                            <small class="notify-container">{{ i.unread_messages_count }}</small>
-                            {% endif %}
-                          {% endif %}
-                          </span>
-                          
-                        </p>
-                      </li>
-                      {% endfor %}
+                      
                     </ul>
                   </div>
                 </div>
-                {% if show_chat %}
-                <div class="col-xl-8 col-lg-8 col-md-8 col-sm-9 col-9 chatBox-container" value="{{ value.id }}">
-                  <div class="selected-user">
-                    <span>To: <span class="name">{{ to_value.name }}</span></span>
+                <div class="col-xl-8 col-lg-8 col-md-8 col-sm-9 col-9 chatBox-container" value="">
+                  <div class="selected-user chatBox-container-display">
+                    <span>To: <span class="name-of-contact">{{ to_value.name }}</span></span>
                   </div>
                   <div class="chat-container">
                     <ul class="chat-box chatContainerScroll chatBoxList" style="height: 30rem; max-height: 30rem; overflow-y: scroll;" id="chatBox">
-                      {% for i in messages %} {% if i.from_user == value and i.to_user == request.user %}
+                      <!-- {% for i in messages %} {% if i.from_user == value and i.to_user == request.user %}
                       <li class="chat-left">
                         <div class="chat-avatar">
                           <img
@@ -580,7 +550,7 @@
                           <div class="chat-name">You</div>
                         </div>
                       </li>
-                      {% endif %} {% endfor %}
+                      {% endif %} {% endfor %} -->
                     </ul>
                     <form
                       class="form-group mt-3 mb-0 d-flex flex-row justify-content-center align-items-center"
@@ -605,7 +575,6 @@
                     </form>
                   </div>
                 </div>
-                {% endif %}
               </div>
             </div>
           </div>
@@ -616,7 +585,302 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.3.1/dist/js/bootstrap.bundle.min.js"></script>
 
 
-    <script type="text/javascript">
+    <script>
+      const requestUser = {{ from_id|safe }}
+      const contactList = JSON.parse('{{ contacts_json|escapejs }}');
+      const messageList = JSON.parse('{{ messages_json|escapejs }}');
+  
+      const chatSocket = new WebSocket(`ws://${window.location.host}/ws/chat/chatroom/`)
+      const notifySocket = new WebSocket(`ws://${window.location.host}/ws/notify/chatroom/`)
+  
+      let chatBoxContainer = document.querySelector(`.chatBox-container`)
+      const chatBox = document.getElementById('chatBox');
+      const usersList = document.querySelector(`.users`);
+      const btnLogout = document.querySelector(`.btn-logout`);
+  
+      window.addEventListener('load', () => {
+        // if (localStorage.getItem('val')) {
+        //   btnLogout.classList.remove('disabled')
+        // }
+        contactList.forEach( x => {
+          // console.log(usersList.children.length+"this the length")
+          for (let i = 0; i < usersList.children.length; i++) {
+            if (usersList.children[i].getAttribute('value') == localStorage.getItem('val')) {
+              usersList.children[i].click()
+            }
+          }
+        })
+        // if (localStorage.getItem('val') !== null) {
+        //   document.querySelector(`.selected-user`).classList.remove('chatBox-container-display')
+        // }
+      })
+  
+      function formatDate(dateString) {
+        const date = new Date(dateString);
+        const today = new Date();
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+  
+        if (date >= today.setHours(0, 0, 0, 0)) {
+          // Date is today
+          const hours = date.getHours();
+          const minutes = date.getMinutes();
+          return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+        } else if (date >= yesterday.setHours(0, 0, 0, 0)) {
+          // Date is yesterday
+          const month = date.getMonth() + 1;
+          const day = date.getDate();
+          return `yesterday`;
+        } else {
+          // Date is before yesterday
+          const year = date.getFullYear();
+          const month = date.getMonth() + 1;
+          const day = date.getDate();
+          return `${day.toString().padStart(2, '0')}/${month.toString().padStart(2, '0')}/${year}`;
+        }
+      }
+  
+  
+      function generateUserList(contactList) {
+        const usersList = document.querySelector(`.users`)
+        usersListContent = ``
+        contactList.forEach( x => {
+          usersListContent += `
+          <li
+            class="person d-flex flex-row"
+            data-chat="person1"
+            value="${x.user_id}"
+          >
+            <div class="user">
+              <img
+                src="https://www.bootdey.com/img/Content/avatar/avatar3.png"
+                alt="Retail Admin"
+              />
+              <span class="status busy"></span>
+            </div>
+            <p class="name-time d-flex flex-column">
+              <span class="name-user d-flex flex-row justify-content-between">
+                <span class="user-name">${x.name}</span>
+                ${x.latest_message_time ? `<span class="timestamp">${formatDate(x.latest_message_time)}</span>`:``}
+              </span>
+              <span class="d-flex flex-row justify-content-between">
+                <span>
+                  ${x.latest_message_user === requestUser && x.latest_message_read ? `<span class="fa fa-check-circle"></span>`: (x.latest_message_user == requestUser && !x.latest_message_read ? `<span class="fa fa-check-circle unread-check-notify""></span>`:``)}
+                  ${x.latest_message ? (x.latest_message.length > 40 ? `<small class="latest-message">${x.latest_message.slice(0,40)}....</small>`:`<small class="latest-message">${ x.latest_message}</small>`):``}
+                </span>
+                ${x.unread_messages_count && localStorage.getItem('val') != x.id ? `<small class="notify-container">${x.unread_messages_count}</small>`:``}
+              </span>
+              
+            </p>
+          </li>
+          `
+        })
+        usersList.innerHTML = usersListContent;
+      }
+      generateUserList(contactList)
+      
+  
+  //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  
+      function generateMessages(messageList, chatBoxList, val, toName) {
+        let chatBoxContent = ``
+          messageList.forEach(x => {
+            chatBoxContent += `
+            ${
+              x.from_user_id == val && x.to_user_id == requestUser ?
+              `
+              <li class="chat-left">
+                <div class="chat-avatar">
+                  <img
+                    src="https://www.bootdey.com/img/Content/avatar/avatar3.png"
+                    alt="Retail Admin"
+                  />
+                  <div class="chat-name">${toName}</div>
+                </div>
+                <div class="chat-text">${x.sms}</div>
+                <div class="chat-hour">
+                  ${formatDate(x.created_at)}</span>
+                </div>
+              </li>
+              `:
+              (x.from_user_id == requestUser && x.to_user_id == val ? 
+              `
+              <li class="chat-right ">
+                <div class="chat-hour">
+                  ${formatDate(x.created_at)}
+                </div>
+                <div class="chat-text read-check-container">${x.sms}
+                  ${x.read_by ? `<span class="fa fa-check-circle read-check"></span>`:`<span class="fa fa-check-circle unread-check"></span>`}
+                </div>
+                <div class="chat-avatar">
+                  <img
+                    src="https://www.bootdey.com/img/Content/avatar/avatar3.png"
+                    alt="Retail Admin"
+                  />
+                  <div class="chat-name">You</div>
+                </div>
+              </li>
+              `:``
+              )
+            }
+              `
+          });
+  
+          chatBoxList.innerHTML = chatBoxContent
+          chatBoxList.scrollTop = chatBox.scrollHeight;
+          document.querySelector(`.selected-user`).classList.remove('chatBox-container-display')
+      }
+  
+      let users = document.querySelectorAll(`.person`)
+      const helper = function (users) {
+        users.forEach((x) => {
+          x.addEventListener("click", () => {
+            // btnLogout.classList.remove('disabled')
+            const val = x.getAttribute("value");
+            localStorage.setItem('val', val)
+            chatBoxContainer.setAttribute("value", localStorage.getItem('val'))
+            let toName = ''
+            contactList.forEach( x => {
+              
+              if (x.user_id == val) {
+                toName = x.name
+                x.unread_messages_count = null;
+                return;
+              }
+            })
+            document.querySelector('.name-of-contact').innerHTML = toName
+            const chatBoxList = document.getElementById(`chatBox`)
+            // chatBoxList.innerHTML = ``
+            generateMessages(messageList, chatBoxList, localStorage.getItem('val'), toName)
+            notifySocket.send(
+              JSON.stringify({
+                contact: localStorage.getItem('val'),
+                from: requestUser,
+              })
+            )
+          })
+        })
+      }
+  
+      helper(users, messageList)
+      if (chatBox) {
+        chatBox.scrollTop = chatBox.scrollHeight;
+      }
+  
+      form.addEventListener("submit", (e) => {
+        e.preventDefault();
+        let message = e.target.sms.value;
+        chatSocket.send(
+          JSON.stringify({
+            message: message,
+            to: localStorage.getItem('val'),
+            from: requestUser,
+          })
+        );
+        
+        form.reset();
+        });
+  
+        chatSocket.onmessage = function(e) {
+          let data = JSON.parse(e.data);
+          
+          if (data.from == requestUser || parseInt(data.to,10) == requestUser) {
+            contactList.forEach(x => {
+              if(x.id === parseInt(data.to,10) || x.id === data.from) {
+                x.latest_message = data.message
+                x.latest_message_read = false
+                x.latest_message_time = data.time
+                x.latest_message_user = data.from
+                if (data.from != requestUser) {
+                  x.unread_messages_count = x.unread_messages_count ? x.unread_messages_count += 1 : 1
+                }
+                
+              }
+            })
+            contactList.sort((a, b) => {
+              if (a.latest_message_time && b.latest_message_time) {
+                return b.latest_message_time.localeCompare(a.latest_message_time);
+              } else if (a.latest_message_time) {
+                return -1; // a has a value, b is null, so a should come before b
+              } else if (b.latest_message_time) {
+                return 1; // b has a value, a is null, so b should come before a
+              } else {
+                return 0; // both a and b are null, no specific order
+              }
+            });
+  
+            console.log(localStorage.getItem('val'));
+            if (localStorage.getItem('val') == data.from) {
+
+              console.log("yes it is detected");
+              notifySocket.send(JSON.stringify({
+                contact: localStorage.getItem('val'),
+                from: data.to
+              }))
+            }
+  
+            messageList.push(
+              {
+                created_at: data.time,
+                from_user_id: data.from,
+                id: data.latest_message_id,
+                read_by: false,
+                sms: data.message,
+                to_user_id: parseInt(data.to, 10)
+              }
+            )
+            // console.log(messageList);
+  
+            // console.log(contactList);
+            generateUserList(contactList)
+            let users = document.querySelectorAll(`.person`)
+            let chatBoxList = document.getElementById(`chatBox`)
+            
+            generateMessages(messageList, chatBoxList, localStorage.getItem('val'), data.contactName)
+            helper(users)
+          }
+          
+        }
+  
+        notifySocket.onmessage = function(e) {
+          let data = JSON.parse(e.data);
+          if (data.from == requestUser || parseInt(data.contact,10) == requestUser) {
+            // console.log(`receiving data from ${data.from} to ${data.contact} ${requestUser}`);
+            contactList.forEach(x => {
+              // console.log(x.id);
+              if(x.latest_message_user == requestUser && x.id == data.from) {
+                // console.log(x.latest_message)
+                x.latest_message_read = true
+              }
+              if(x.id == data.contact) {
+                x.unread_messages_count = null
+              }
+            });
+  
+            // console.log(requestUser, data.from, data.contact);
+            messageList.forEach( x => {
+              
+              if(x.from_user_id == requestUser && x.to_user_id == data.from) {
+                // console.log(`testing latest message ${x.sms}`);
+                x.read_by = true;
+              }
+            })
+  
+            generateUserList(contactList)
+            let chatBoxList = document.getElementById(`chatBox`)
+            generateMessages(messageList, chatBoxList, localStorage.getItem('val'), data.from_name)
+            let users = document.querySelectorAll(`.person`)
+            helper(users)
+          }
+        }
+  
+        btnLogout.addEventListener('click', () => {
+          localStorage.removeItem('val')
+          window.location.href = `/logout`
+        })
+    </script>
+
+    <!-- <script type="text/javascript">
       
       const chatBox = document.getElementById('chatBox')
       const usersList = document.querySelector(`.users`)
@@ -848,6 +1112,8 @@
         
         form.reset();
       });  
-    </script>
+    </script> -->
+ 
+  
   </body>
 </html>

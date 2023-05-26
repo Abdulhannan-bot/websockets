@@ -51,6 +51,8 @@ def contacts(request, key):
   contacts = Contact.objects.annotate(
       latest_message=Subquery(latest_messages.values('sms')[:1]),
       latest_message_time=Subquery(latest_messages.values('created_at')[:1]),
+      latest_message_user=Subquery(latest_messages.values('from_user')[:1]),
+      latest_message_read=Subquery(latest_messages.values('read_by')[:1]),
       unread_messages_count=Subquery(unread_messages_subquery),
       ).order_by("-latest_message_time").exclude(user = user)
  
@@ -67,9 +69,9 @@ def chat_room(request, key, to_user):
   chat_room_messages = Message.objects.filter(Q(from_user = From, to_user = to) | Q(from_user=to, to_user=From))
   to_messages = Message.objects.filter(from_user=to, to_user=From)
   mark_read_messages = to_messages.filter(read_by=False)
-  for i in mark_read_messages:
-    i.read_by = True
-    i.save()
+  # for i in mark_read_messages:
+  #   i.read_by = True
+  #   i.save()
 
   serializers = MessageSerializer(chat_room_messages, many=True)
   new_serializers = deepcopy(serializers.data)
@@ -97,8 +99,10 @@ def send_message(request):
   return Response({"No POST request found"})
 
 
-
-  
-
-  
-  
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def logout_view(request, key):
+  token = Token.objects.get(key=key)
+  token.delete()
+  logout(request)
+  return Response("Logged out succesfully")
